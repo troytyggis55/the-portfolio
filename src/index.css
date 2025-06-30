@@ -4,14 +4,16 @@
 @theme {
     --color-text: var(--text-color);
     --color-background: var(--background-color);
+    --color-foreground: var(--foreground-color);
     --color-accent: var(--accent-color);
     --width-app: var(--app-width);
     --height-header: var(--header-hight);
 }
 
 :root {
-    --text-color: #E8F1F2;
-    --background-color: #12130F;
+    --text-color: rgba(232, 241, 242, 0.9);
+    --background-color: #000F14;
+    --foreground-color: #001F29;
     --accent-color: #007EA7;
     
     --app-width: 1280px;
