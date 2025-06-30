@@ -58,8 +58,8 @@ const Pathfinding: React.FC = () => {
             
             const oldNodes = new Map(nodes);
             nodes.clear();
-            for (let x = iLeft; x < iRight; x++) {
-                for (let y = iTop; y < iBottom; y++) {
+            for (let x = iLeft; x <= iRight; x++) {
+                for (let y = iTop; y <= iBottom; y++) {
                     nodes.set(getKey(x, y), oldNodes.get(getKey(x, y)) ?? new GridNode('empty', x, y));
                 }
             }
