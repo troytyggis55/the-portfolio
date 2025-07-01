@@ -1,3 +1,5 @@
+import {accentColor, foregroundColor} from "../theme.tsx";
+
 type NodeState = 'empty' | 'wall' | 'start' | 'end' | 'path'
 
 class GridNode {
@@ -55,10 +57,21 @@ class GridNode {
     }
 
     draw(ctx: CanvasRenderingContext2D, size: number, center: [number, number]) {
-        if (this.state === 'empty') {
-            ctx.fillStyle = 'rgba(255, 0, 0, 1)'
-        } else if (this.state === 'wall') {
-            ctx.fillStyle = 'rgba(0, 0, 255, 1)'//accentColor
+        switch (this.state) {
+            case 'wall':
+                ctx.fillStyle = foregroundColor;
+                break;
+            case 'start':
+                ctx.fillStyle = accentColor;
+                break;
+            case 'end':
+                ctx.fillStyle = accentColor;
+                break;
+            case 'path':
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.5)'; // Semi-transparent yellow for path
+                break;
+            default:
+                return;
         }
         
         ctx.fillRect(
@@ -69,7 +82,8 @@ class GridNode {
         )    
     }
 
-    equals(node: GridNode) {
+    equals(node: GridNode | null): boolean {
+        if (!node) return false
         return this.x === node.x && this.y === node.y
     }
 }

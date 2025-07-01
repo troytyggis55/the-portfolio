@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import GridNode from "./gridNode.ts";
+import {createNoise2D} from "simplex-noise";
 
 const setCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, gridSize: number) => {
     const dpr = window.devicePixelRatio || 1;
@@ -30,40 +31,112 @@ const setCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, gri
 
 const Pathfinding: React.FC = () => {
     const gridSize = 20;
+
     
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    //const accentColor =
-    // getComputedStyle(document.documentElement).getPropertyValue('--foreground-color').trim();
     
     // Draw grid and handle resize when component mounts
     useEffect(() => {
         const nodes = new Map<string, GridNode>();
+        let startNode: GridNode | null = null;
+        let endNode: GridNode | null = null;
+        
         const getKey = (x: number, y: number) => `${x},${y}`;
+        
+        const algorithm: 'astar' | 'dijkstra' = 'astar';
+        
+        const isEuclidean = false;
+        const getNeighbors = (x: number, y: number): GridNode[] => {
+            const neighbors: GridNode[] = [];
+            const isLeftEdge = x === iLeft;
+            const isRightEdge = x === iRight;
+            const isTopEdge = y === iTop;
+            const isBottomEdge = y === iBottom;
+
+            if (!isLeftEdge) neighbors.push(nodes.get(getKey(x - 1, y))!);
+            if (!isRightEdge) neighbors.push(nodes.get(getKey(x + 1, y))!);
+            if (!isTopEdge) neighbors.push(nodes.get(getKey(x, y - 1))!);
+            if (!isBottomEdge) neighbors.push(nodes.get(getKey(x, y + 1))!);
+
+            if (isEuclidean) {
+                if (!isLeftEdge && !isTopEdge) neighbors.push(nodes.get(getKey(x - 1, y - 1))!);
+                if (!isRightEdge && !isTopEdge) neighbors.push(nodes.get(getKey(x + 1, y - 1))!);
+                if (!isRightEdge && !isBottomEdge) neighbors.push(nodes.get(getKey(x + 1, y + 1))!);
+                if (!isLeftEdge && !isBottomEdge) neighbors.push(nodes.get(getKey(x - 1, y + 1))!);
+            }
+
+            return neighbors
+        }
+        
+        const noise = createNoise2D()
+        const getNoise = (x: number, y: number, scale: number = 50, threshold: number = 0.5) => {
+            return noise(x / scale, y / scale) > threshold
+        }
         
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const { iLeft, iRight, iTop, iBottom } = setCanvas(canvas, ctx, gridSize);
-        
-        for (let x = iLeft; x < iRight; x++) {
-            for (let y = iTop; y < iBottom; y++) {
-                nodes.set(getKey(x, y), new GridNode('empty', x, y));
-            }
-        }
+        let { center, iLeft, iRight, iTop, iBottom } = setCanvas(canvas, ctx, gridSize);
 
         const refreshGrid = () => {
-            const { center, iLeft, iRight, iTop, iBottom } = setCanvas(canvas, ctx, gridSize);
+            ({ center, iLeft, iRight, iTop, iBottom } = setCanvas(canvas, ctx, gridSize));
             
             const oldNodes = new Map(nodes);
             nodes.clear();
             for (let x = iLeft; x <= iRight; x++) {
                 for (let y = iTop; y <= iBottom; y++) {
-                    nodes.set(getKey(x, y), oldNodes.get(getKey(x, y)) ?? new GridNode('empty', x, y));
+                    const oldNode = oldNodes.get(getKey(x, y));
+                    if (oldNode) {
+                        nodes.set(getKey(x, y), oldNode);
+                    } else if (getNoise(x, y, 5, 0.2)) {
+                        nodes.set(getKey(x,  y), new GridNode('wall', x, y));
+                    } else {
+                        nodes.set(getKey(x, y), new GridNode('empty', x, y));
+                    }
                 }
             }
+
+            //const randomQuadrant = Math.floor(Math.random() * 4);
+//
+            //const maxTries = Math.floor(((iRight - iLeft + 1) * (iBottom - iTop + 1)) / 4);
+            //let tries = 0;
+            //while (startNode == null && tries < maxTries) {
+            //    tries++;
+            //    const xRange = randomQuadrant < 2 ? iLeft : iRight;
+            //    const yRange = randomQuadrant % 2 === 0 ? iTop : iBottom;
+            //    
+            //    const x = Math.floor(Math.random() * xRange)
+            //    const y = Math.floor(Math.random() * yRange);
+            //        
+            //    const key = getKey(x, y);
+            //    if (nodes.has(key)) continue;
+            //    startNode = new GridNode('start', x, y);
+            //    nodes.set(key, startNode);
+            //}
+//
+            //tries = 0;
+            //while (startNode == null && tries < maxTries) {
+            //    tries++;
+            //    const xRange = randomQuadrant < 2 ? iRight : iLeft;
+            //    const yRange = randomQuadrant % 2 === 0 ? iBottom : iTop;
+            //    
+            //    const x = Math.floor(Math.random() * xRange)
+            //    const y = Math.floor(Math.random() * yRange)
+            //    
+            //    const key = getKey(x, y);
+            //    if (nodes.has(key) || (startNode && startNode.x === x && startNode.y === y))
+            //    continue;
+            //    endNode = new GridNode('end', x, y);
+            //    nodes.set(key, endNode);
+            //}
             
+            startNode = new GridNode('start', iLeft, iTop);
+            endNode = new GridNode('end', iRight, iBottom);
+            nodes.set(getKey(startNode.x, startNode.y), startNode);
+            nodes.set(getKey(endNode.x, endNode.y), endNode);
+
             const drawGrid = () => {
                 nodes.forEach((node) => {
                     node.draw(ctx, gridSize, center);
@@ -73,16 +146,69 @@ const Pathfinding: React.FC = () => {
             drawGrid();
         };
         
-
         refreshGrid();
+
+        const pathfind = () => {
+            if (!startNode || !endNode) return;
+            
+            startNode.distanceFromStart = 0
+            const queue: GridNode[] = []
+            queue.push(startNode)
+            
+            const searchInterval = setInterval(() => {
+                const current = queue.shift()
+                if (!current || current.equals(endNode)) return clearInterval(searchInterval)
+                
+                for (const neighbor of getNeighbors(current.x, current.y)) {
+                    if (neighbor.state === 'wall' || neighbor.state === 'start') continue;
+                    if (neighbor.equals(endNode)) return clearInterval(searchInterval)
+                    
+                    neighbor.state = 'path';
+                    neighbor.draw(ctx, gridSize, center);
+                    
+                    const thisNeighbourDistanceFromStart =
+                        current.distanceFromStart + (isEuclidean 
+                            ? current.getEuclideanDistanceTo(neighbor)
+                            : current.getManhattanDistanceTo(neighbor));
+
+                    if (thisNeighbourDistanceFromStart < neighbor.distanceFromStart) {
+                        neighbor.distanceFromStart = thisNeighbourDistanceFromStart
+                        
+                        if (algorithm === 'astar') {
+                            startNode = startNode as GridNode; // TODO fiks hatløsning
+                            endNode = endNode as GridNode; // TODO fiks hatløsning
+                            neighbor.weightedDistanceFromStart = thisNeighbourDistanceFromStart +
+                                (isEuclidean 
+                                    ? neighbor.getEuclideanDistanceTo(endNode)
+                                    : neighbor.getManhattanDistanceTo(endNode));
+                        } else {
+                            neighbor.weightedDistanceFromStart = thisNeighbourDistanceFromStart
+                        }
+                        
+                        neighbor.previous = current
+
+                        if (!queue.includes(neighbor)) queue.push(neighbor)
+                    }
+                }
+                queue.sort(
+                    (a, b) =>
+                        a.weightedDistanceFromStart - b.weightedDistanceFromStart || a.y - b.y || a.x - b.x
+                )
+            }, 1000 / 1000); // 60 FPS
+        }
+        
+        pathfind()
+
         window.addEventListener('resize', refreshGrid);
-        return () => window.removeEventListener('resize', refreshGrid);
+        return () => {
+            window.removeEventListener('resize', refreshGrid);
+        };
     }, []);
 
     return (
         <canvas
             ref={canvasRef}
-            className="fixed w-full h-full top-0 left-0 bg-gray-500"
+            className="fixed w-full h-full top-0 left-0"
         />
     );
 };
