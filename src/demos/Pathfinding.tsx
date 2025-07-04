@@ -29,9 +29,23 @@ const setCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, gri
     return { dpr, width, height, center, xCount, yCount, xOffset, yOffset, iLeft, iRight, iTop, iBottom }
 };
 
+const pause = (ms?: number) => {
+    if (ms === undefined) {
+        return new Promise<void>(resolve => {
+            const handler = (e: KeyboardEvent) => {
+                if (e.code === 'Space') {
+                    window.removeEventListener('keydown', handler);
+                    resolve();
+                }
+            };
+            window.addEventListener('keydown', handler);
+        });
+    }
+    return new Promise<void>(resolve => setTimeout(resolve, ms));
+};
+
 const Pathfinding: React.FC = () => {
     const gridSize = 20;
-
     
     const canvasRef = useRef<HTMLCanvasElement>(null);
     
@@ -43,9 +57,10 @@ const Pathfinding: React.FC = () => {
         
         const getKey = (x: number, y: number) => `${x},${y}`;
         
-        const algorithm: 'astar' | 'dijkstra' = 'astar';
+        const algorithm: 'astar' | 'dijkstra' = 'dijkstra';
         
         const isEuclidean = false;
+        
         const getNeighbors = (x: number, y: number): GridNode[] => {
             const neighbors: GridNode[] = [];
             const isLeftEdge = x === iLeft;
@@ -152,49 +167,64 @@ const Pathfinding: React.FC = () => {
             if (!startNode || !endNode) return;
             
             startNode.distanceFromStart = 0
-            const queue: GridNode[] = []
-            queue.push(startNode)
-            
-            const searchInterval = setInterval(() => {
-                const current = queue.shift()
-                if (!current || current.equals(endNode)) return clearInterval(searchInterval)
+            const queue: GridNode[] = [startNode]
+
+            const searchStep = async () => {
+                const current = queue.shift();
+                if (!current || current.state === 'end') return;
                 
-                for (const neighbor of getNeighbors(current.x, current.y)) {
-                    if (neighbor.state === 'wall' || neighbor.state === 'start') continue;
-                    if (neighbor.equals(endNode)) return clearInterval(searchInterval)
+                current.draw(ctx, gridSize, center, 'white');
+                const neighbors = getNeighbors(current.x, current.y);
+                
+                for (const neighbor of neighbors) {
+                    if (neighbor.state === 'end') break;
+                    if (!(neighbor.state === 'empty' || neighbor.state === 'queue')) continue;
                     
-                    neighbor.state = 'path';
-                    neighbor.draw(ctx, gridSize, center);
-                    
-                    const thisNeighbourDistanceFromStart =
-                        current.distanceFromStart + (isEuclidean 
+                    if (neighbor.state === 'empty') {
+                        neighbor.state = 'queue';
+                        neighbor.draw(ctx, gridSize, center);
+                    }
+
+                    const neighborDistanceFromStart =
+                        current.distanceFromStart + (isEuclidean
                             ? current.getEuclideanDistanceTo(neighbor)
                             : current.getManhattanDistanceTo(neighbor));
 
-                    if (thisNeighbourDistanceFromStart < neighbor.distanceFromStart) {
-                        neighbor.distanceFromStart = thisNeighbourDistanceFromStart
-                        
+                    if (neighborDistanceFromStart < neighbor.distanceFromStart) {
+                        neighbor.distanceFromStart = neighborDistanceFromStart;
+
                         if (algorithm === 'astar') {
                             startNode = startNode as GridNode; // TODO fiks hatløsning
                             endNode = endNode as GridNode; // TODO fiks hatløsning
-                            neighbor.weightedDistanceFromStart = thisNeighbourDistanceFromStart +
-                                (isEuclidean 
+                            neighbor.weightedDistanceFromStart = neighborDistanceFromStart +
+                                (isEuclidean
                                     ? neighbor.getEuclideanDistanceTo(endNode)
                                     : neighbor.getManhattanDistanceTo(endNode));
                         } else {
-                            neighbor.weightedDistanceFromStart = thisNeighbourDistanceFromStart
+                            neighbor.weightedDistanceFromStart = neighborDistanceFromStart;
                         }
-                        
-                        neighbor.previous = current
 
-                        if (!queue.includes(neighbor)) queue.push(neighbor)
+                        neighbor.previous = current;
+                        if (!queue.includes(neighbor)) queue.push(neighbor);
                     }
                 }
+
+                if (current.state !== 'start') {
+                    current.state = 'visited';
+                }
+
+                current.draw(ctx, gridSize, center);
+
                 queue.sort(
                     (a, b) =>
-                        a.weightedDistanceFromStart - b.weightedDistanceFromStart || a.y - b.y || a.x - b.x
-                )
-            }, 1000 / 1000); // 60 FPS
+                        a.weightedDistanceFromStart - b.weightedDistanceFromStart || a.x - b.x || a.y - b.y
+                );
+
+                if (queue.length > 0) {
+                    setTimeout(searchStep, 0);
+                }
+            };
+            searchStep();
         }
         
         pathfind()

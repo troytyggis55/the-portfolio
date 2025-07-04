@@ -1,6 +1,6 @@
 import {accentColor, foregroundColor} from "../theme.tsx";
 
-type NodeState = 'empty' | 'wall' | 'start' | 'end' | 'path'
+type NodeState = 'empty' | 'wall' | 'start' | 'end' | 'path' | 'visited' | 'queue';
 
 class GridNode {
     state: NodeState
@@ -30,48 +30,30 @@ class GridNode {
         return Math.hypot(this.x - node.x, this.y - node.y)
     }
 
-    getAllNeighbors(grid: GridNode[][]) {
-        const neighbors: GridNode[] = []
-        const dirs = [
-            [-1, -1], [0, -1], [1, -1],
-            [1, 0], [1, 1], [0, 1],
-            [-1, 1], [-1, 0]
-        ]
-        for (const [dx, dy] of dirs) {
-            const nx = this.x + dx, ny = this.y + dy
-            if (grid[nx]?.[ny]) neighbors.push(grid[nx][ny])
-        }
-        return neighbors
-    }
-
-    getOrthogonalNeighbors(grid: GridNode[][]) {
-        const neighbors: GridNode[] = []
-        const dirs = [
-            [0, -1], [1, 0], [0, 1], [-1, 0]
-        ]
-        for (const [dx, dy] of dirs) {
-            const nx = this.x + dx, ny = this.y + dy
-            if (grid[nx]?.[ny]) neighbors.push(grid[nx][ny])
-        }
-        return neighbors
-    }
-
-    draw(ctx: CanvasRenderingContext2D, size: number, center: [number, number]) {
-        switch (this.state) {
-            case 'wall':
-                ctx.fillStyle = foregroundColor;
-                break;
-            case 'start':
-                ctx.fillStyle = accentColor;
-                break;
-            case 'end':
-                ctx.fillStyle = accentColor;
-                break;
-            case 'path':
-                ctx.fillStyle = 'rgba(255, 255, 0, 0.5)'; // Semi-transparent yellow for path
-                break;
-            default:
-                return;
+    draw(ctx: CanvasRenderingContext2D, size: number, center: [number, number], color: string | null = null) {
+        
+        if (color) {
+            ctx.fillStyle = color;
+        } else {
+            switch (this.state) {
+                case 'wall':
+                    ctx.fillStyle = 'red'//foregroundColor;
+                    break;
+                case 'start':
+                    ctx.fillStyle = accentColor;
+                    break;
+                case 'end':
+                    ctx.fillStyle = accentColor;
+                    break;
+                case 'visited':
+                    ctx.fillStyle = 'rgba(0, 255, 0, 1)'; // Semi-transparent yellow for path
+                    break;
+                case 'queue':
+                    ctx.fillStyle = 'rgba(0, 0, 255, 1)';
+                    break
+                default:
+                    return;
+            }
         }
         
         ctx.fillRect(
