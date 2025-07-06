@@ -5,7 +5,9 @@
     --color-text: var(--text-color);
     --color-background: var(--background-color);
     --color-foreground: var(--foreground-color);
-    --color-accent: var(--accent-color);
+    --color-primary: var(--primary-color);
+    --color-secondary: var(--secondary-color);
+    
     --width-app: var(--app-width);
     --height-header: var(--header-hight);
 }
@@ -14,7 +16,8 @@
     --text-color: rgba(232, 241, 242, 0.9);
     --background-color: #000F14;
     --foreground-color: #001F29;
-    --accent-color: #007EA7;
+    --primary-color: #007EA7;
+    --secondary-color: #003D52;
     
     --app-width: 1280px;
     --header-hight: 100px;
@@ -34,7 +37,7 @@
 
 a {
     font-weight: 500;
-    color: var(--accent-color);
+    color: var(--primary-color);
     text-decoration: inherit;
 }
 
@@ -80,7 +83,7 @@ button {
     font-size: 1em;
     font-weight: bold;
     font-family: inherit;
-    background-color: var(--accent-color);
+    background-color: var(--primary-color);
     cursor: pointer;
     transition: border-color 0.25s;
 }

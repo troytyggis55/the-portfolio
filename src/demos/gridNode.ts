@@ -1,6 +1,6 @@
-import {accentColor, foregroundColor} from "../theme.tsx";
+import {primaryColor, foregroundColor, secondaryColor, backgroundColor} from "../theme.tsx";
 
-type NodeState = 'empty' | 'wall' | 'start' | 'end' | 'path' | 'visited' | 'queue';
+type NodeState = 'empty' | 'wall' | 'start' | 'end' | 'path' | 'visited' | 'queue' | 'locked';
 
 class GridNode {
     state: NodeState
@@ -16,11 +16,10 @@ class GridNode {
         this.x = x
         this.y = y
     }
-
-    get isTop() { return this.y === 0 }
-    get isBottom() { return false } // Set based on grid size externally if needed
-    get isLeft() { return this.x === 0 }
-    get isRight() { return false } // Set based on grid size externally if needed
+    
+    touchesWall(iLeft: number, iRight: number, iTop: number, iBottom: number) {
+        return this.x === iLeft || this.x === iRight || this.y === iTop || this.y === iBottom
+    }
 
     getManhattanDistanceTo(node: GridNode) {
         return Math.abs(this.x - node.x) + Math.abs(this.y - node.y)
@@ -31,26 +30,31 @@ class GridNode {
     }
 
     draw(ctx: CanvasRenderingContext2D, size: number, center: [number, number], color: string | null = null) {
-        
         if (color) {
             ctx.fillStyle = color;
         } else {
             switch (this.state) {
                 case 'wall':
-                    ctx.fillStyle = 'red'//foregroundColor;
+                    ctx.fillStyle = foregroundColor;
                     break;
                 case 'start':
-                    ctx.fillStyle = accentColor;
+                    ctx.fillStyle = primaryColor;
                     break;
                 case 'end':
-                    ctx.fillStyle = accentColor;
+                    ctx.fillStyle = primaryColor;
                     break;
-                case 'visited':
-                    ctx.fillStyle = 'rgba(0, 255, 0, 1)'; // Semi-transparent yellow for path
+                case 'path':
+                    ctx.fillStyle = primaryColor;
                     break;
                 case 'queue':
                     ctx.fillStyle = 'rgba(0, 0, 255, 1)';
                     break
+                case 'visited':
+                    ctx.fillStyle = 'green'//secondaryColor
+                    break;
+                case 'locked':
+                    ctx.fillStyle = secondaryColor
+                    break;
                 default:
                     return;
             }
@@ -61,9 +65,21 @@ class GridNode {
             this.y * size + center[1] + 1,
             size - 1,
             size - 1
-        )    
+        )
+
     }
 
+    clear(ctx: CanvasRenderingContext2D, size: number, center: [number, number]) {
+        ctx.fillStyle = backgroundColor
+        
+        ctx.fillRect(
+            this.x * size + center[0] - 1,
+            this.y * size + center[1] - 1,
+            size + 1,
+            size + 1
+        )
+    }
+    
     equals(node: GridNode | null): boolean {
         if (!node) return false
         return this.x === node.x && this.y === node.y

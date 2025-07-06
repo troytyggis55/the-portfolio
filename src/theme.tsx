@@ -10,6 +10,10 @@ export const foregroundColor = getComputedStyle(document.documentElement)
     .getPropertyValue('--foreground-color')
     .trim();
 
-export const accentColor = getComputedStyle(document.documentElement)
-    .getPropertyValue('--accent-color')
+export const primaryColor = getComputedStyle(document.documentElement)
+    .getPropertyValue('--primary-color')
+    .trim();
+
+export const secondaryColor = getComputedStyle(document.documentElement)
+    .getPropertyValue('--secondary-color')
     .trim();
