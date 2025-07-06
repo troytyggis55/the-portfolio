@@ -1,6 +1,39 @@
-import React, { useRef, useEffect } from 'react';
-import GridNode from "./gridNode.ts";
-import {createNoise2D} from "simplex-noise";
+import React, { useEffect, useRef } from 'react';
+import GridNode from './gridNode.ts';
+import { createNoise2D } from 'simplex-noise';
+
+/** Simple mutex used to synchronize canvas updates */
+class Mutex {
+    private locked = false;
+    private waiting: Array<() => void> = [];
+
+    async lock() {
+        if (!this.locked) {
+            this.locked = true;
+            return;
+        }
+        await new Promise<void>(resolve => this.waiting.push(resolve));
+    }
+
+    unlock() {
+        const next = this.waiting.shift();
+        if (next) {
+            next();
+        } else {
+            this.locked = false;
+        }
+    }
+}
+
+const gridSize = 40;
+const algorithm: 'astar' | 'dijkstra' = 'dijkstra';
+const isEuclidean = false;
+
+const noise = createNoise2D();
+const getNoise = (x: number, y: number, scale = 50, threshold = 0.5) =>
+    noise(x / scale, y / scale) > threshold;
+
+const getKey = (x: number, y: number) => `${x},${y}`;
 
 const setCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, gridSize: number) => {
     const dpr = window.devicePixelRatio || 1;
@@ -30,61 +63,19 @@ const setCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, gri
     return { dpr, width, height, center, xCount, yCount, xOffset, yOffset, iLeft, iRight, iTop, iBottom }
 };
 
-const pause = (ms?: number) => {
-    if (ms === undefined) {
-        return new Promise<void>(resolve => {
-            const handler = (e: KeyboardEvent) => {
-                if (e.code === 'Space') {
-                    window.removeEventListener('keydown', handler);
-                    resolve();
-                }
-            };
-            window.addEventListener('keydown', handler);
-        });
-    }
-    return new Promise<void>(resolve => setTimeout(resolve, ms));
-};
 
 const Pathfinding: React.FC = () => {
-    const gridSize = 40;
     const canvasRef = useRef<HTMLCanvasElement>(null);
     
     // Draw grid and handle resize when component mounts
     useEffect( () => {
-        // Semaphore implementation
-        class Semaphore {
-            private _locked = false;
-            private _waiting: (() => void)[] = [];
-            async acquire() {
-                if (!this._locked) {
-                    this._locked = true;
-                    return;
-                }
-                await new Promise<void>(resolve => this._waiting.push(resolve));
-            }
-            release() {
-                if (this._waiting.length > 0) {
-                    const next = this._waiting.shift();
-                    next && next();
-                } else {
-                    this._locked = false;
-                }
-            }
-        }
-        const semaphore = new Semaphore();
+        const mutex = new Mutex();
 
         let pathFound = false;
-        let isSearching = false;
 
         const nodes = new Map<string, GridNode>();
         let startNode: GridNode | null = null;
         let endNode: GridNode | null = null;
-        
-        const getKey = (x: number, y: number) => `${x},${y}`;
-        
-        const algorithm: 'astar' | 'dijkstra' = 'dijkstra';
-        
-        const isEuclidean = false;
         
         const getNeighbors = (x: number, y: number): GridNode[] => {
             const neighbors: GridNode[] = [];
@@ -108,10 +99,6 @@ const Pathfinding: React.FC = () => {
             return neighbors
         }
         
-        const noise = createNoise2D()
-        const getNoise = (x: number, y: number, scale: number = 50, threshold: number = 0.5) => {
-            return noise(x / scale, y / scale) > threshold
-        }
         
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -242,17 +229,6 @@ const Pathfinding: React.FC = () => {
             nodes.set(getKey(endNode.x, endNode.y), endNode);
         }
         
-        const showPath = (leafNode: GridNode) => {
-            let current: GridNode | null = leafNode;
-            while (current) {
-                if (current.state !== 'start' && current.state !== 'end') {
-                    current.state = 'path';
-                    current.draw(ctx, gridSize, center);
-                }
-                current = current.previous;
-            }
-        }
-
         const resetSearch = () => {
             pathFound = false;
 
@@ -282,8 +258,6 @@ const Pathfinding: React.FC = () => {
         const initPathfind = () => {
             if (!startNode || !endNode) return false;
 
-            isSearching = true;
-
             startNode.distanceFromStart = 0;
 
             const queue: GridNode[] = [startNode];
@@ -307,13 +281,11 @@ const Pathfinding: React.FC = () => {
             const current = queue.shift();
             if (!current) {
                 console.log('No path found');
-                isSearching = false;
                 return;
             }
 
             if (current.state === 'end' || pathFound) {
                 pathFound = true;
-                isSearching = false;
                 //showPath(current);
                 resetSearch();
                 return;
@@ -364,8 +336,8 @@ const Pathfinding: React.FC = () => {
                     a.weightedDistanceFromStart - b.weightedDistanceFromStart
             );
 
-            setTimeout(async () => {
-                await withLock(searchStep(queue));
+            setTimeout(() => {
+                withLock(() => searchStep(queue));
             }, 0);
         };
 
@@ -377,11 +349,11 @@ const Pathfinding: React.FC = () => {
         
 
         const withLock = async (fn: () => Promise<void> | void) => {
-            await semaphore.acquire();
+            await mutex.lock();
             try {
                 await fn();
             } finally {
-                semaphore.release();
+                mutex.unlock();
             }
         };
         
